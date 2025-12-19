@@ -1,6 +1,9 @@
 "use client";
 
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import html2canvas from 'html2canvas';
+
 import { 
   Trophy, 
   Zap, 
@@ -224,9 +227,55 @@ const Game = ({
   isAnswering, 
   selectedOption, 
   hiddenOptions,
-  handleShare,
   activeTheme 
 }: any) => {
+  const resultRef = useRef<HTMLDivElement>(null);
+  const [isSharing, setIsSharing] = useState(false);
+
+  const handleImageShare = async () => {
+    if (!resultRef.current || isSharing) return;
+    setIsSharing(true);
+    
+    try {
+      const canvas = await html2canvas(resultRef.current, {
+        backgroundColor: '#020205',
+        scale: 2,
+        logging: false,
+        useCORS: true
+      });
+      
+      canvas.toBlob(async (blob) => {
+        if (!blob) return;
+        
+        const file = new File([blob], 'logro-catemu.png', { type: 'image/png' });
+        const text = gameState.win 
+          ? `¡Soy una leyenda de Catemu! ${gameState.score.toLocaleString()} PTS. 🏆`
+          : `Mi puntaje en Trivia Catemina: ${gameState.score.toLocaleString()} PTS. 🧠`;
+
+        if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+          try {
+            await navigator.share({
+              title: 'Trivia Catemina',
+              text: text,
+              files: [file],
+            });
+          } catch (e) {
+            console.log('Share canceled/failed', e);
+          }
+        } else {
+          const link = document.createElement('a');
+          link.download = 'trivia-catemu-resultado.png';
+          link.href = canvas.toDataURL();
+          link.click();
+        }
+        setIsSharing(false);
+      }, 'image/png');
+    } catch (err) {
+      console.error(err);
+      setIsSharing(false);
+    }
+  };
+
   const currentQuestion = activeQuestions[gameState.currentQuestionIndex];
   const theme = THEMES[activeTheme] || THEMES.cultura;
   const currentPrize = PRIZE_LADDER[gameState.currentQuestionIndex] || 1000;
@@ -241,44 +290,52 @@ const Game = ({
         <motion.div 
           initial={{ opacity: 0, scale: 0.9, filter: "blur(10px)" }}
           animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
-          className="bg-white/5 backdrop-blur-xl p-8 sm:p-12 rounded-[2.5rem] border border-white/10 text-center max-w-lg w-full shadow-2xl relative z-10"
+          className="bg-white/5 backdrop-blur-xl p-6 sm:p-10 rounded-[2.5rem] border border-white/10 text-center max-w-lg w-full shadow-2xl relative z-10"
         >
-          {gameState.win ? (
-            <motion.div
-              initial={{ rotate: -20, scale: 0 }}
-              animate={{ rotate: 0, scale: 1 }}
-              transition={{ type: "spring", damping: 10 }}
-            >
-              <CheckCircle2 size={100} className={`${theme.accent} mx-auto mb-6 drop-shadow-[0_0_20px_${theme.glow}]`} />
-            </motion.div>
-          ) : (
-            <XCircle size={100} className="text-red-500 mx-auto mb-6 drop-shadow-[0_0_20px_rgba(239,68,68,0.4)]" />
-          )}
-          <h2 className="text-3xl sm:text-4xl font-black mb-2 uppercase tracking-tight">
-            {gameState.win ? '¡Leyenda de Catemu!' : 'Fin del Camino'}
-          </h2>
-          <p className="text-white/40 mb-8 text-lg font-light italic">
-            {gameState.win ? 'Has demostrado ser un conocedor absoluto.' : 
-             gameState.reason === 'timeout' ? 'El tiempo fue más rápido que tú.' : 'Una decisión equivocada ha terminado el juego.'}
-          </p>
-          <div className="flex flex-col items-center justify-center bg-white/5 p-8 rounded-3xl border border-white/5 mb-10 relative overflow-hidden group">
-              <motion.div 
-                animate={{ opacity: [0, 0.1, 0] }}
-                transition={{ duration: 3, repeat: Infinity }}
-                style={{ background: theme.glow }}
-                className="absolute inset-0"
-              />
-              <span className="text-white/30 uppercase text-[10px] font-black tracking-[0.4em] mb-2 relative z-10">Rango Alcanzado</span>
-              <div className={`text-4xl sm:text-5xl font-black ${theme.accent} tracking-tighter mb-4 relative z-10 uppercase italic drop-shadow-[0_0_15px_${theme.glow}]`}>
-                {gameState.score >= 150000 ? 'Leyenda Catemina' : 
-                 gameState.score >= 50000 ? 'Maestro del Valle' : 
-                 gameState.score >= 10000 ? 'Conocedor Local' : 'Visitante Novato'}
+          <div ref={resultRef} className="flex flex-col items-center bg-[#020205] p-8 rounded-[2rem] border border-white/5 shadow-inner mb-8 w-full relative overflow-hidden">
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.03),transparent_70%)] pointer-events-none" />
+              {gameState.win ? (
+                <motion.div
+                  initial={{ rotate: -20, scale: 0 }}
+                  animate={{ rotate: 0, scale: 1 }}
+                  transition={{ type: "spring", damping: 10 }}
+                >
+                  <CheckCircle2 size={80} className={`${theme.accent} mx-auto mb-6 drop-shadow-[0_0_20px_${theme.glow}]`} />
+                </motion.div>
+              ) : (
+                <XCircle size={80} className="text-red-500 mx-auto mb-6 drop-shadow-[0_0_20px_rgba(239,68,68,0.4)]" />
+              )}
+              <h2 className="text-2xl sm:text-3xl font-black mb-2 uppercase tracking-tight relative z-10">
+                {gameState.win ? '¡Leyenda de Catemu!' : 'Fin del Camino'}
+              </h2>
+              <p className="text-white/40 mb-8 text-sm sm:text-base font-light italic relative z-10">
+                {gameState.win ? 'Has demostrado ser un conocedor absoluto.' : 
+                gameState.reason === 'timeout' ? 'El tiempo fue más rápido que tú.' : 'Una decisión equivocada ha terminado el juego.'}
+              </p>
+              
+              <div className="flex flex-col items-center justify-center bg-white/5 p-6 rounded-2xl border border-white/5 w-full relative overflow-hidden group">
+                  <motion.div 
+                    animate={{ opacity: [0, 0.1, 0] }}
+                    transition={{ duration: 3, repeat: Infinity }}
+                    style={{ background: theme.glow }}
+                    className="absolute inset-0"
+                  />
+                  <span className="text-white/30 uppercase text-[9px] font-black tracking-[0.4em] mb-2 relative z-10">Rango Alcanzado</span>
+                  <div className={`text-3xl sm:text-4xl font-black ${theme.accent} tracking-tighter mb-4 relative z-10 uppercase italic drop-shadow-[0_0_15px_${theme.glow}]`}>
+                    {gameState.score >= 150000 ? 'Leyenda Catemina' : 
+                    gameState.score >= 50000 ? 'Maestro del Valle' : 
+                    gameState.score >= 10000 ? 'Conocedor Local' : 'Visitante Novato'}
+                  </div>
+                  <span className="text-white/30 uppercase text-[9px] font-black tracking-[0.3em] mb-2 relative z-10">Puntuación Final</span>
+                  <div className="text-3xl sm:text-4xl font-black text-white/80 tracking-tighter relative z-10">
+                    {gameState.score.toLocaleString()} <span className="text-xs text-white/20 ml-1">PTS</span>
+                  </div>
               </div>
-              <span className="text-white/30 uppercase text-[10px] font-black tracking-[0.3em] mb-2 relative z-10">Puntuación Final</span>
-              <div className="text-3xl sm:text-4xl font-black text-white/80 tracking-tighter relative z-10">
-                {gameState.score.toLocaleString()} <span className="text-xs text-white/20 ml-1">PTS</span>
+              <div className="mt-6 text-white/10 text-[8px] uppercase tracking-[0.5em] font-bold">
+                 Trivia Catemina
               </div>
           </div>
+
           <div className="flex flex-col gap-3">
             <motion.button 
               whileHover={{ scale: 1.02 }}
@@ -292,10 +349,12 @@ const Game = ({
             <motion.button 
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              onClick={() => handleShare(gameState.score, gameState.win)} 
-              className="w-full py-4 bg-blue-600/20 border border-blue-500/30 text-blue-400 font-bold text-sm rounded-2xl hover:bg-blue-600/30 transition-all flex items-center justify-center gap-2 uppercase tracking-widest"
+              onClick={handleImageShare} 
+              disabled={isSharing}
+              className="w-full py-4 bg-blue-600/20 border border-blue-500/30 text-blue-400 font-bold text-sm rounded-2xl hover:bg-blue-600/30 transition-all flex items-center justify-center gap-2 uppercase tracking-widest disabled:opacity-50"
             >
-              <Share2 size={18} /> Compartir Logro
+              {isSharing ? <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" /> : <Share2 size={18} />}
+              {isSharing ? 'Generando...' : 'Compartir Logro'}
             </motion.button>
           </div>
         </motion.div>

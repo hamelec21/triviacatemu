@@ -38,27 +38,40 @@ const THEMES: Record<string, { accent: string, glow: string, bg: string, text: s
 
 const PRIZE_LADDER = [1000, 2000, 3000, 5000, 10000, 15000, 25000, 40000, 60000, 100000, 150000, 250000, 400000, 600000, 1000000];
 
-// --- AUDIO SYSTEM ---
+const audioCtxRef = { current: null as AudioContext | null };
+
+const initAudio = () => {
+    if (!audioCtxRef.current) {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (AudioContextClass) {
+            audioCtxRef.current = new AudioContextClass();
+        }
+    }
+    if (audioCtxRef.current?.state === 'suspended') {
+        audioCtxRef.current.resume();
+    }
+};
+
 const playTone = (freq: number, type: OscillatorType, duration: number, volume = 0.1) => {
   try {
-    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-    if (!AudioContextClass) return;
-    
-    const audioCtx = new AudioContextClass();
-    const oscillator = audioCtx.createOscillator();
-    const gainNode = audioCtx.createGain();
+    if (!audioCtxRef.current) initAudio();
+    const ctx = audioCtxRef.current;
+    if (!ctx) return;
+
+    const oscillator = ctx.createOscillator();
+    const gainNode = ctx.createGain();
 
     oscillator.type = type;
-    oscillator.frequency.setValueAtTime(freq, audioCtx.currentTime);
+    oscillator.frequency.setValueAtTime(freq, ctx.currentTime);
     
-    gainNode.gain.setValueAtTime(volume, audioCtx.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+    gainNode.gain.setValueAtTime(volume, ctx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + duration);
 
     oscillator.connect(gainNode);
-    gainNode.connect(audioCtx.destination);
+    gainNode.connect(ctx.destination);
 
     oscillator.start();
-    oscillator.stop(audioCtx.currentTime + duration);
+    oscillator.stop(ctx.currentTime + duration);
   } catch (e) {
     console.warn("Audio Context error:", e);
   }
@@ -108,7 +121,10 @@ const Menu = ({ setView, startNewGame, soundEnabled, setSoundEnabled }: any) => 
     </div>
 
     <button 
-      onClick={() => setSoundEnabled(!soundEnabled)}
+      onClick={() => {
+        initAudio();
+        setSoundEnabled(!soundEnabled);
+      }}
       className="absolute top-6 right-6 p-4 bg-white/5 backdrop-blur-md rounded-full hover:bg-white/10 transition-all border border-white/10 z-50 group"
     >
       {soundEnabled ? <Volume2 size={24} className="text-yellow-500 group-hover:scale-110 transition-transform" /> : <VolumeX size={24} className="text-slate-500" />}
@@ -147,7 +163,10 @@ const Menu = ({ setView, startNewGame, soundEnabled, setSoundEnabled }: any) => 
             <motion.button 
               whileHover={{ scale: 1.05, y: -5 }}
               whileTap={{ scale: 0.95 }}
-              onClick={() => startNewGame(CULTURA_GENERAL, 'cultura')} 
+              onClick={() => {
+                initAudio();
+                startNewGame(CULTURA_GENERAL, 'cultura');
+              }} 
               className="flex items-center sm:flex-col justify-start sm:justify-center gap-4 p-5 sm:p-6 bg-white/5 border border-white/10 rounded-2xl hover:bg-yellow-500/10 hover:border-yellow-500/30 transition-all group active:bg-white/20 relative overflow-hidden"
             >
               <div className="p-3 bg-yellow-500/10 rounded-xl group-hover:bg-yellow-500/20 transition-colors">
@@ -160,7 +179,10 @@ const Menu = ({ setView, startNewGame, soundEnabled, setSoundEnabled }: any) => 
             <motion.button 
               whileHover={{ scale: 1.05, y: -5 }}
               whileTap={{ scale: 0.95 }}
-              onClick={() => startNewGame(FUTBOL_CATEMU, 'futbol')} 
+              onClick={() => {
+                initAudio();
+                startNewGame(FUTBOL_CATEMU, 'futbol');
+              }}
               className="flex items-center sm:flex-col justify-start sm:justify-center gap-4 p-5 sm:p-6 bg-white/5 border border-white/10 rounded-2xl hover:bg-blue-500/10 hover:border-blue-500/30 transition-all group active:bg-white/20 relative overflow-hidden"
             >
               <div className="p-3 bg-blue-500/10 rounded-xl group-hover:bg-blue-500/20 transition-colors">
@@ -173,7 +195,10 @@ const Menu = ({ setView, startNewGame, soundEnabled, setSoundEnabled }: any) => 
             <motion.button 
               whileHover={{ scale: 1.05, y: -5 }}
               whileTap={{ scale: 0.95 }}
-              onClick={() => startNewGame(RODEO_CATEMU, 'rodeo')} 
+              onClick={() => {
+                initAudio();
+                startNewGame(RODEO_CATEMU, 'rodeo');
+              }}
               className="flex items-center sm:flex-col justify-start sm:justify-center gap-4 p-5 sm:p-6 bg-white/5 border border-white/10 rounded-2xl hover:bg-orange-500/10 hover:border-orange-500/30 transition-all group active:bg-white/20 relative overflow-hidden"
             >
               <div className="p-3 bg-orange-500/10 rounded-xl group-hover:bg-orange-500/20 transition-colors">
@@ -237,15 +262,21 @@ const Game = ({
     setIsSharing(true);
     
     try {
+      // Use ignoreElements to prevent issues with cross-origin images if necessary, though useCORS works for most
       const canvas = await html2canvas(resultRef.current, {
         backgroundColor: '#020205',
-        scale: 2,
+        scale: 1.5, // Reduced scale for better mobile performance
         logging: false,
-        useCORS: true
+        useCORS: true,
+        allowTaint: true,
       });
       
       canvas.toBlob(async (blob) => {
-        if (!blob) return;
+        if (!blob) {
+            alert("No se pudo generar la imagen. Intenta de nuevo.");
+            setIsSharing(false);
+            return;
+        }
         
         const file = new File([blob], 'logro-catemu.png', { type: 'image/png' });
         const text = gameState.win 
@@ -261,17 +292,27 @@ const Game = ({
             });
           } catch (e) {
             console.log('Share canceled/failed', e);
+             // Verify if it was just cancelled or failed. If failed, maybe offer download?
+             // But usually cancel is fine.
           }
         } else {
-          const link = document.createElement('a');
-          link.download = 'trivia-catemu-resultado.png';
-          link.href = canvas.toDataURL();
-          link.click();
+            // Fallback for browsers that don't support file sharing
+            try {
+                const link = document.createElement('a');
+                link.download = 'trivia-catemu-resultado.png';
+                link.href = canvas.toDataURL();
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            } catch (err) {
+                 alert("Tu dispositivo no soporta compartir imágenes directamente.");
+            }
         }
         setIsSharing(false);
       }, 'image/png');
     } catch (err) {
       console.error(err);
+      alert("Ocurrió un error al intentar compartir.");
       setIsSharing(false);
     }
   };

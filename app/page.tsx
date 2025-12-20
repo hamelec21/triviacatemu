@@ -2,7 +2,8 @@
 
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import html2canvas from 'html2canvas';
+import { toBlob } from 'html-to-image';
+
 
 import { 
   Trophy, 
@@ -262,52 +263,44 @@ const Game = ({
     setIsSharing(true);
     
     try {
-      const canvas = await html2canvas(resultRef.current, {
+      const blob = await toBlob(resultRef.current, {
+        cacheBust: true,
         backgroundColor: '#020205',
-        scale: 1, // Reduced to 1 for maximum stability on mobile
-        logging: true, // Enable logging for debugging
-        useCORS: true,
+        style: {
+           transform: 'scale(1)', 
+        }
       });
-      
-      canvas.toBlob(async (blob) => {
-        if (!blob) {
-            alert("No se pudo generar la imagen (Blob vacío).");
-            setIsSharing(false);
-            return;
-        }
-        
-        const file = new File([blob], 'logro-catemu.png', { type: 'image/png' });
-        const text = gameState.win 
-          ? `¡Soy una leyenda de Catemu! ${gameState.score.toLocaleString()} PTS. 🏆`
-          : `Mi puntaje en Trivia Catemina: ${gameState.score.toLocaleString()} PTS. 🧠`;
 
-        if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-          try {
-            await navigator.share({
-              title: 'Trivia Catemina',
-              text: text,
-              files: [file],
-            });
-          } catch (e) {
-             console.warn('Share dismissed/failed', e);
-          }
-        } else {
-            try {
-                const link = document.createElement('a');
-                link.download = 'trivia-catemu-resultado.png';
-                link.href = canvas.toDataURL();
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-            } catch (err) {
-                 alert("Tu navegador no soporta la descarga automática.");
-            }
-        }
+      if (!blob) {
+        alert("No se pudo generar la imagen.");
         setIsSharing(false);
-      }, 'image/png');
+        return;
+      }
+      
+      const file = new File([blob], 'logro-catemu.png', { type: 'image/png' });
+      const text = gameState.win 
+        ? `¡Soy una leyenda de Catemu! ${gameState.score.toLocaleString()} PTS. 🏆`
+        : `Mi puntaje en Trivia Catemina: ${gameState.score.toLocaleString()} PTS. 🧠`;
+
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({ title: 'Trivia Catemina', text, files: [file] });
+        } catch (e) { console.warn('Share dismissed', e); }
+      } else {
+        try {
+            const link = document.createElement('a');
+            link.download = 'trivia-catemu-resultado.png';
+            link.href = URL.createObjectURL(blob);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(link.href);
+        } catch (err) { alert("Tu navegador no soporta la descarga."); }
+      }
+      setIsSharing(false);
     } catch (err: any) {
       console.error(err);
-      alert(`Error al generar imagen: ${err.message || 'Desconocido'}`);
+      alert(`Error al generar imagen: ${err.message}`);
       setIsSharing(false);
     }
   };

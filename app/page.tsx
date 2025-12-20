@@ -262,17 +262,16 @@ const Game = ({
     setIsSharing(true);
     
     try {
-      // Use ignoreElements to prevent issues with cross-origin images if necessary, though useCORS works for most
       const canvas = await html2canvas(resultRef.current, {
         backgroundColor: '#020205',
-        scale: 1.5, // Reduced scale for better mobile performance
-        logging: false,
+        scale: 1, // Reduced to 1 for maximum stability on mobile
+        logging: true, // Enable logging for debugging
         useCORS: true,
       });
       
       canvas.toBlob(async (blob) => {
         if (!blob) {
-            alert("No se pudo generar la imagen. Intenta de nuevo.");
+            alert("No se pudo generar la imagen (Blob vacío).");
             setIsSharing(false);
             return;
         }
@@ -290,12 +289,9 @@ const Game = ({
               files: [file],
             });
           } catch (e) {
-            console.log('Share canceled/failed', e);
-             // Verify if it was just cancelled or failed. If failed, maybe offer download?
-             // But usually cancel is fine.
+             console.warn('Share dismissed/failed', e);
           }
         } else {
-            // Fallback for browsers that don't support file sharing
             try {
                 const link = document.createElement('a');
                 link.download = 'trivia-catemu-resultado.png';
@@ -304,14 +300,14 @@ const Game = ({
                 link.click();
                 document.body.removeChild(link);
             } catch (err) {
-                 alert("Tu dispositivo no soporta compartir imágenes directamente.");
+                 alert("Tu navegador no soporta la descarga automática.");
             }
         }
         setIsSharing(false);
       }, 'image/png');
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert("Ocurrió un error al intentar compartir.");
+      alert(`Error al generar imagen: ${err.message || 'Desconocido'}`);
       setIsSharing(false);
     }
   };

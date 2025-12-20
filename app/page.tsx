@@ -268,7 +268,6 @@ const Game = ({
         scale: 1.5, // Reduced scale for better mobile performance
         logging: false,
         useCORS: true,
-        allowTaint: true,
       });
       
       canvas.toBlob(async (blob) => {
